@@ -3,51 +3,42 @@ import pandas as pd
 from scipy.sparse import load_npz
 import pickle
 
-def GetMovieRecommendation(original_title, content_df, feature_set_matrix, knn, n_neighbors=10):
+def get_recommendations_by_title(original_title, knn_model, final_features, content_df, top_n=10):
     """
-    Get movie recommendations based on a given movie title.
+    Get the top N movie recommendations based on the original title using a pre-fitted KNN model.
 
-    Parameters:
-    - original_title (str): The title of the movie for which recommendations are sought.
-    - content_df (DataFrame): The DataFrame containing movie details.
-    - feature_set_matrix (array-like): The feature matrix used for the KNN model.
-    - knn (NearestNeighbors): The trained KNN model.
-    - n_neighbors (int): The number of similar movies to return (default is 10).
+    Args:
+        original_title (str): The title of the movie for which to find recommendations.
+        knn_model: The pre-fitted KNN model.
+        final_features: The final feature matrix used in the KNN model.
+        content_df: DataFrame containing 'original_title' and other movie data.
+        top_n (int): Number of top recommendations to return.
 
     Returns:
-    - DataFrame: A DataFrame containing the top N similar movies.
+        DataFrame: A DataFrame containing the top N similar movies with specified columns.
     """
+    # Find the index of the movie that matches the original_title
+    idx = content_df.index[content_df['original_title'] == original_title].tolist()
 
-    # Find the index of the movie in the DataFrame
-    try:
-        movie_idx = content_df.index[content_df['original_title'] == original_title][0]
-    except IndexError:
-        return f"Movie '{original_title}' not found in the dataset."
+    if not idx:
+        return f"Movie with title '{original_title}' not found in the dataset."
 
-    # Find the nearest neighbors (similar movies)
-    distances, indices = knn.kneighbors([feature_set_matrix[movie_idx]], n_neighbors=n_neighbors + 1)
+    # Get the indices of the top N most similar movies using KNN
+    distances, indices = knn_model.kneighbors(final_features[idx], n_neighbors=top_n + 1)
 
-    # Extract the indices and distances of the neighbors
-    neighbor_indices = indices[0]
-    neighbor_distances = distances[0]
+    # Get the indices of the recommended movies (excluding the first one, which is the movie itself)
+    recommended_indices = indices.flatten()[1:top_n + 1]
+    recommended_distances = distances.flatten()[1:top_n + 1]
 
-    # Create a DataFrame for the neighbors
-    neighbor_df = content_df.iloc[neighbor_indices].copy()
+    # Create a DataFrame for the recommended movies
+    recommended_df = content_df.iloc[recommended_indices].copy()
 
-    # Calculate and add the similarity score (inverse of distance) to the DataFrame
-    neighbor_df['similarity_score'] = 1 - neighbor_distances
+    # Add the similarity score (inverse of distance) to the DataFrame
+    recommended_df['similarity_score'] = 1 - recommended_distances
 
-    # Exclude the original movie
-    neighbor_df = neighbor_df[neighbor_df.index != movie_idx]
+    # Return the DataFrame with the desired columns
+    return recommended_df[['id', 'original_title', 'vote_count', 'vote_average', 'similarity_score']]
 
-    # Sort the DataFrame by similarity score
-    neighbor_df = neighbor_df.sort_values(by='similarity_score', ascending=False)
-
-    # Select the top N neighbors
-    top_n_df = neighbor_df.head(n_neighbors)
-
-    # Return the top N similar movies
-    return top_n_df[['id', 'original_title', 'vote_count', 'vote_average', 'similarity_score']]
 
 def main():
     st.title("Movie Recommendation System")
@@ -78,7 +69,7 @@ def main():
 
     # When the user selects a movie
     if selected_movie:
-        top_recommendations = GetMovieRecommendation(selected_movie, content_df, feature_set_matrix, knn, n_neighbors=10)
+        top_recommendations = get_recommendations_by_title(selected_movie, knn, final_features =feature_set_matrix , content_df = content_df, top_n=10)
         top_5_recommendations = top_recommendations[['id', 'original_title', 'vote_count', 'vote_average', 'similarity_score']].head(5)
 
         # Display the top 5 recommendations
