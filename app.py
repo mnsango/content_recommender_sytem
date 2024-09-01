@@ -84,6 +84,10 @@ def DisplayMoviePosterStreamlit(top_recommendations, posters_folder):
 def main():
     st.title("Movie Recommendation System")
 
+    # Introduction text
+    st.write("Recommender systems are essential tools for enhancing user experience, driving engagement, increasing sales, and providing personalized content in various domains, from e-commerce and streaming services to news platforms and social networks.")
+    st.write("In this app, you can search for a movie you have watched and liked, and I will recommend five more movies based on content-based filtering model. Hopefully, you have not watched all five!")
+    
     # Load your data and model (assume these are pre-loaded or loaded from files)
     content_df = pd.read_parquet('content_based_features.parquet')
     feature_set_matrix = load_npz('content_based_sparse_feature_set.npz')
@@ -112,14 +116,25 @@ def main():
     if selected_movie:
         top_recommendations = get_recommendations_by_title(selected_movie, knn, final_features=feature_set_matrix, content_df=content_df, top_n=10)
         top_5_recommendations = top_recommendations[['id', 'original_title', 'vote_count', 'vote_average', 'similarity_score']].head(5)
+        data_table = top_5_recommendations[['original_title', 'vote_count', 'vote_average', 'similarity_score']]
+
+        # Add short descriptions
+        st.write("**Vote Count:** The total number of votes the movie has received.")
+        st.write("**Vote Average:** The average rating of the movie based on the votes it has received.")
+        st.write("**Similarity Score:** A measure of how similar the recommended movie is to the selected movie (closer to 1 indicates higher similarity).")
 
         # Display the top 5 recommendations
         st.write(f"Top 5 movie recommendations for: {selected_movie}")
-        st.dataframe(top_5_recommendations)
+        st.dataframe(data_table)
 
         # Display posters
         posters_folder = os.path.join(os.getcwd(), 'posters')
         DisplayMoviePosterStreamlit(top_5_recommendations, posters_folder)
+
+    # Footer
+    st.write("---")
+    st.write("**Created By:** Mthokozisi Nsango")
+    st.write("**Last data update:** July 2024")
 
 if __name__ == "__main__":
     main()
