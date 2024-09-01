@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from scipy.sparse import load_npz
 import pickle
+from PIL import Image
+import os
 
 def get_recommendations_by_title(original_title, knn_model, final_features, content_df, top_n=10):
     """
@@ -39,6 +41,45 @@ def get_recommendations_by_title(original_title, knn_model, final_features, cont
     # Return the DataFrame with the desired columns
     return recommended_df[['id', 'original_title', 'vote_count', 'vote_average', 'similarity_score']]
 
+def DisplayMoviePosterStreamlit(top_recommendations, posters_folder):
+    """
+    Display the movie posters of the top recommended movies using Streamlit.
+
+    Parameters:
+    - top_recommendations (DataFrame): A DataFrame containing the top movie recommendations, which includes the 'id' column.
+    - posters_folder (str): The path to the folder containing the movie posters named according to 'id' in the format "id.jpg".
+
+    Returns:
+    - None: Displays the posters in a 2x5 grid using Streamlit.
+    """
+
+    # Determine sorting behavior based on available columns
+    if {'similarity_score', 'pred'}.issubset(top_recommendations.columns):
+        top_recommendations = top_recommendations.sort_values(by=['similarity_score', 'pred'], ascending=[False, False])
+    elif 'similarity_score' in top_recommendations.columns:
+        top_recommendations = top_recommendations.sort_values(by='similarity_score', ascending=False)
+
+    # Create columns for a 2x5 grid
+    cols = st.columns(5)
+
+    for i, (index, row) in enumerate(top_recommendations.iterrows()):
+        imdb_id = row['id']
+        poster_path = os.path.join(posters_folder, f"{imdb_id}.jpg")
+
+        # Load the image
+        try:
+            img = Image.open(poster_path).convert('RGB')
+        except FileNotFoundError:
+            st.write(f"Poster not found for IMDb ID {imdb_id}.")
+            img = Image.new('RGB', (500, 750), color=(73, 109, 137))  # Placeholder image if not found
+
+        # Display the image in the grid
+        with cols[i % 5]:
+            st.image(img, caption=row['original_title'], use_column_width=True)
+
+        # Move to next row if we've filled the current row
+        if (i + 1) % 5 == 0:
+            cols = st.columns(5)
 
 def main():
     st.title("Movie Recommendation System")
@@ -69,12 +110,16 @@ def main():
 
     # When the user selects a movie
     if selected_movie:
-        top_recommendations = get_recommendations_by_title(selected_movie, knn, final_features =feature_set_matrix , content_df = content_df, top_n=10)
+        top_recommendations = get_recommendations_by_title(selected_movie, knn, final_features=feature_set_matrix, content_df=content_df, top_n=10)
         top_5_recommendations = top_recommendations[['id', 'original_title', 'vote_count', 'vote_average', 'similarity_score']].head(5)
 
         # Display the top 5 recommendations
         st.write(f"Top 5 movie recommendations for: {selected_movie}")
         st.dataframe(top_5_recommendations)
+
+        # Display posters
+        posters_folder = os.path.join(os.getcwd(), 'posters')
+        DisplayMoviePosterStreamlit(top_5_recommendations, posters_folder)
 
 if __name__ == "__main__":
     main()
